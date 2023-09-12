@@ -2,7 +2,7 @@
 import numpy as np
 import tensorflow as tf
 # frontend
-from dash import Dash, html, dcc, dash_table, Patch
+from dash import Dash, html, dcc, ctx, callback, no_update, Input, Output, State
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 # vk api as a must
@@ -54,9 +54,9 @@ with sqlite3.connect('datasets/posts.db') as conn:
     for row in cur:
         topics[int(row[0])] = row[1]
 
-text = 'привет абитуриент олимпиада пройдет в школе пенал не понадобится'
-topic_num = get_label_num(text)
-print(f'topic("{text}") = "{topics[topic_num]}"')
+#text = 'привет абитуриент олимпиада пройдет в школе пенал не понадобится'
+#topic_num = get_label_num(text)
+#print(f'topic("{text}") = "{topics[topic_num]}"')
 
 # vk api stuff
 # could've stored in the envvar but...
@@ -85,3 +85,50 @@ def get_post_text(post_url):
 #print(get_post_text('https://vk.com/jumoreski?w=wall-92876084_465495'))
 
 # frontend time!
+app = Dash(__name__)
+
+app.layout = html.Div([
+    html.H4('Классификация постов'),
+    html.Div([
+        "Введите ссылку на пост: ",
+        dcc.Input(id='input-post-url', type='text', value='', placeholder='e. g. https://vk.com/jumoreski?w=wall-92876084_465495', size='100'),
+    ]),
+    html.Div([
+        html.Button(id='get-topic-btn', n_clicks=0, children='Узнать возможную тему'),
+        html.Button(id='clear-btn', n_clicks=0, children='Очистить')
+    ]),
+    html.Div([
+        "Возможная тема: ",
+        html.Div(id='topic-output'),
+        html.Div(id='err-output', style={'color':'red'})
+    ])
+])
+
+@callback(Output('topic-output', 'children'),
+          Output('get-topic-btn', 'n_clicks'),
+          Output('clear-btn', 'n_clicks'),
+          Output('err-output', 'children'),
+          Input('get-topic-btn', 'n_clicks'),
+          Input('input-post-url', 'value'),
+          Input('clear-btn', 'n_clicks'))
+def get_topic(topic_n_clicks, post_url, clear_n_clicks):
+    if topic_n_clicks == 0 and clear_n_clicks == 0:
+        raise PreventUpdate
+    if ctx.triggered_id == 'get-topic-btn':
+        topic, err = None, None
+        try:
+            text = get_post_text(post_url)
+            n = get_label_num(text)
+            topic = topics[n]
+        except RuntimeError:
+            err = 'Ошибка, неверная ссылка!'
+        except:
+            err = 'Ошибка!'
+        if err is None:
+            return topic, 0, 0, ''
+        return '', 0, 0, err
+    elif ctx.triggered_id == 'clear-btn':
+        return '', 0, 0, ''
+
+if __name__ == '__main__':
+    app.run_server(debug=True)
